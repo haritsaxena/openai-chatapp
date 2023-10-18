@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.AI.ChatCompletion;
 
 // Add Azure OpenAI package
 
@@ -23,22 +24,18 @@ IKernel kernel = Kernel.Builder
     .WithAzureChatCompletionService(aoaiModel, aoaiEndpoint, aoaiApiKey)
     .Build();
 
-kernel.RegisterCustomFunction(SKFunction.FromNativeFunction(
-    () => $"{DateTime.UtcNow:r}","DateTime", "Now", "Gets the current date and time"));
+// Create a new chat
+IChatCompletion ai = kernel.GetService<IChatCompletion>();
+ChatHistory chat = ai.CreateNewChat("You are an AI assistant that helps people find information.");
 
-ISKFunction qa = kernel.CreateSemanticFunction("""
-    The current date and time is {{ datetime.now }}.
-    {{ $input }}
-    """);
-
-// Q&A loop
 while (true)
 {
-    // Console.Write("Question: ");
-    // Console.WriteLine((await kernel.InvokeSemanticFunctionAsync(Console.ReadLine()!)).GetValue<string>());
-    // Console.WriteLine();
-
     Console.Write("Question: ");
-    Console.WriteLine((await qa.InvokeAsync(Console.ReadLine()!, kernel, functions: kernel.Functions)).GetValue<string>());
+    chat.AddUserMessage(Console.ReadLine()!);
+
+    string answer = await ai.GenerateMessageAsync(chat);
+    chat.AddAssistantMessage(answer);
+    Console.WriteLine(answer);
+
     Console.WriteLine();
 }
