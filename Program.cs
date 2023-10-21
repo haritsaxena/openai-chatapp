@@ -1,7 +1,8 @@
-﻿using System.Text;
+﻿using System.Net;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Configuration.Json;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.AI.ChatCompletion;
 
@@ -29,6 +30,13 @@ IChatCompletion ai = kernel.GetService<IChatCompletion>();
 ChatHistory chat = ai.CreateNewChat("You are an AI assistant that helps people find information.");
 
 StringBuilder builder = new();
+
+using (HttpClient client = new())
+{
+    string s = await client.GetStringAsync("https://devblogs.microsoft.com/dotnet/performance_improvements_in_net_7");
+    s = WebUtility.HtmlDecode(Regex.Replace(s, @"<[^>]+>|&nbsp;", ""));
+    chat.AddUserMessage("Here's some additional information: " + s); // uh oh!
+}
 
 // Q&A loop
 while (true)
