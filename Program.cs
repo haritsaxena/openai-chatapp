@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.AI.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AI.OpenAI;
+using Microsoft.SemanticKernel.Connectors.Memory.Sqlite;
 using Microsoft.SemanticKernel.Memory;
 using Microsoft.SemanticKernel.Plugins.Memory;
 using Microsoft.SemanticKernel.Text;
@@ -15,7 +16,7 @@ IConfiguration config = new ConfigurationBuilder()
     .Build();
 
 string aoaiEndpoint = config["AzureOAIEndpoint"] ?? "";
-string aoaiApiKey = config["AzureOAIKey"] ?? ""; 
+string aoaiApiKey = config["AzureOAIKey"] ?? "";
 string aoaiModel = config["AzureOAIModelName"] ?? "gpt-3.5-turbo";
 
 // See https://aka.ms/new-console-template for more information
@@ -30,22 +31,30 @@ IKernel kernel = Kernel.Builder
 // Download a document and create embeddings for it
 ISemanticTextMemory memory = new MemoryBuilder()
     .WithLoggerFactory(kernel.LoggerFactory)
-    .WithMemoryStore(new VolatileMemoryStore())
+    .WithMemoryStore(await SqliteMemoryStore.ConnectAsync("mydata.db"))
     .WithAzureTextEmbeddingGenerationService("TextEmbeddingAda002_1", aoaiEndpoint, aoaiApiKey)
     .Build();
 
+IList<string> collections = await memory.GetCollectionsAsync();
 string collectionName = "net7perf";
-using (HttpClient client = new())
+if (collections.Contains(collectionName))
 {
-    string s = await client.GetStringAsync("https://devblogs.microsoft.com/dotnet/performance_improvements_in_net_7");
-    List<string> paragraphs =
-        TextChunker.SplitPlainTextParagraphs(
-            TextChunker.SplitPlainTextLines(
-                WebUtility.HtmlDecode(Regex.Replace(s, @"<[^>]+>|&nbsp;", "")),
-                128),
-            1024);
-    for (int i = 0; i < paragraphs.Count; i++)
-        await memory.SaveInformationAsync(collectionName, paragraphs[i], $"paragraph{i}");
+    Console.WriteLine("Found database");
+}
+else
+{
+    using (HttpClient client = new())
+    {
+        string s = await client.GetStringAsync("https://devblogs.microsoft.com/dotnet/performance_improvements_in_net_7");
+        List<string> paragraphs =
+            TextChunker.SplitPlainTextParagraphs(
+                TextChunker.SplitPlainTextLines(
+                    WebUtility.HtmlDecode(Regex.Replace(s, @"<[^>]+>|&nbsp;", "")),
+                    128),
+                1024);
+        for (int i = 0; i < paragraphs.Count; i++)
+            await memory.SaveInformationAsync(collectionName, paragraphs[i], $"paragraph{i}");
+    }
 }
 
 // Create a new chat
